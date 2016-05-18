@@ -174,15 +174,42 @@ void readGroupDescriptor(int fd) {
 		groupDescriptors[i].inodeBitmapBlock[4] = '\0';
 
 		preadLittleEndian(fd, groupDescriptors[i].blockBitmapBlock, 4, startGroupDescriptor + (32*i)); //Offset for inode bitmap block
-		blockDescriptors[i].blockBitmapBlock[4] = '\0';
+		groupDescriptors[i].blockBitmapBlock[4] = '\0';
 
-		preadLittleEndian(fd, groupDescriptors[i].inodeTableBlock, 4, startGroupDescriptor + (32*i) + 4); //Offset for inode bitmap block
+		preadLittleEndian(fd, groupDescriptors[i].inodeTableBlock, 4, startGroupDescriptor + (32*i) + 8); //Offset for inode bitmap block
 		groupDescriptors[i].inodeTableBlock[4] = '\0';
 
 		//print stuff
-		fprintf(writeFileStream, "%d,%d,%d,%d\n", 
+		fprintf(writeFileStream, "%d,%d,%d,%d,", 
 			groupDescriptors[i].containedBlockCount, groupDescriptors[i].freeBlockCount, 
 			groupDescriptors[i].freeInodeCount, groupDescriptors[i].directoryCount);
+
+		const char * temp = groupDescriptors[i].inodeBitmapBlock;
+		int j;
+		int start = 0;
+		for (j = 0; j < 4; j++){
+			if (groupDescriptors[i].inodeBitmapBlock[j] != 0 | start == 1){
+				fprintf(writeFileStream, "%02x", groupDescriptors[i].inodeBitmapBlock[j]);
+				start = 1;
+			}
+		}
+		start = 0;
+		fprintf(writeFileStream, ",");
+		for (j = 0; j < 4; j++){
+			if (groupDescriptors[i].blockBitmapBlock[j] != 0 | start == 1){
+				fprintf(writeFileStream, "%02x", groupDescriptors[i].blockBitmapBlock[j]);
+				start = 1;
+			}
+		}
+		start = 0;
+		fprintf(writeFileStream, ",");
+		for (j = 0; j < 4; j++){
+			if (groupDescriptors[i].inodeTableBlock[j] != 0 | start == 1){
+				fprintf(writeFileStream, "%02x", groupDescriptors[i].inodeTableBlock[j]);
+				start = 1;
+			}
+		}
+		fprintf(writeFileStream, "\n");
 	}
 }
 
