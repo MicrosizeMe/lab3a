@@ -59,15 +59,6 @@ unsigned int getIntFromBuffer(unsigned char* buffer, size_t count) {
 	return returnInt;
 }
 
-/*
-void readWriteAndStoreInteger(int fd, char* buffer, size_t byteCount, int offset, int* value,
-	FILE* writeFileStream1) {
-	preadLittleEndian(fd, buffer, byteCount, offset); //Offset for inode count
-	*value = getIntFromBuffer(buffer, byteCount);
-	fprintf(writeFileStream, "%d,", *value);
-}
-*/
-
 void readSuperBlock(int fd) {
 	FILE* writeFileStream = fopen("super.csv", "w+");
 
@@ -183,7 +174,7 @@ void readGroupDescriptor(int fd) {
 		groupDescriptors[i].inodeBitmapBlock[4] = '\0';
 
 		preadLittleEndian(fd, groupDescriptors[i].blockBitmapBlock, 4, startGroupDescriptor + (32*i)); //Offset for inode bitmap block
-		blockDescriptors[i].blockBitmapBlock[4] = '\0';
+		groupDescriptors[i].blockBitmapBlock[4] = '\0';
 
 		preadLittleEndian(fd, groupDescriptors[i].inodeTableBlock, 4, startGroupDescriptor + (32*i) + 4); //Offset for inode bitmap block
 		groupDescriptors[i].inodeTableBlock[4] = '\0';
@@ -218,15 +209,15 @@ void readFreeBitmapEntry(int fd) {
 			//in blocks
 		unsigned long dataBlockStartOffset = 
 			1 + group * groupDescriptors[0].containedBlockCount;
-		unsigned long dataByteStartOffset = dataBlockStartOffset * blockSize;
+		unsigned long blockBitmapByteOffset = blockBitmapBlock * blockSize;
 
 		for (int i = 0; i < fields.containedBlockCount; i++) {
-			char buffer;
-			pread(fd, &buffer, 1, dataByteStartOffset + i / 8);
-			unsigned int bitmask = 0x1 << i;
+			unsigned char buffer;
+			pread(fd, &buffer, 1, blockBitmapByteOffset + i / 8);
+			unsigned int bitmask = 0x1 << (i % 8);
 			if (!(bitmask & buffer)) {
 				//Found an empty data block, mark accordingly
-				fprintf(writeFileStream, "%x,%d\n", blockBitmapBlock,
+				fprintf(writeFileStream, "%lx,%lu\n", blockBitmapBlock,
 					dataBlockStartOffset + i);
 			}
 		}
@@ -237,19 +228,25 @@ void readFreeBitmapEntry(int fd) {
 		unsigned long inodeBitmapBlock = getIntFromBuffer(fields.inodeBitmapBlock, 4);
 
 		//Obtain some inode block offset start location //TODO
-		unsigned long inodeBlockStartOffset = 1 + group * inodesPerGroup;
-		unsigned long inodeByteStartOffset = inodeBlockStartOffset * blockSize;
+		unsigned long inodeStartOffset = 1 + group * inodesPerGroup;
+		unsigned long inodeByteStartOffset = inodeBitmapBlock * blockSize;
+
+
+		fprintf(stderr, "%lu\n", inodeStartOffset);
+		fprintf(stderr, "%lx\n", inodeBitmapBlock);
+
 		for (int i = 0; i < inodesPerGroup; i++) {
-			char buffer;
+			unsigned char buffer;
 			pread(fd, &buffer, 1, inodeByteStartOffset + i / 8);
-			unsigned int bitmask = 0x1 << i;
+			unsigned int bitmask = 0x1 << (i % 8);
 			if (!(bitmask & buffer)) {
 				//Found an empty data block, mark accordingly
-				fprintf(writeFileStream, "%x,%d\n", inodeBitmapBlock,
-					inodeByteStartOffset + j);
+				fprintf(writeFileStream, "%lx,%lu\n", inodeBitmapBlock,
+					inodeStartOffset + i);
 			}
 		}
 	}
+	fflush(writeFileStream);
 }
 
 int main (int argc, const char* argv[]) {
@@ -273,4 +270,5 @@ int main (int argc, const char* argv[]) {
 
 	readSuperBlock(diskImageFD);
 	readGroupDescriptor(diskImageFD);
+	readFreeBitmapEntry(diskImageFD);
 }
