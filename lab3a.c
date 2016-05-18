@@ -48,9 +48,12 @@ void readWriteAndStoreInteger(int fd, char* buffer, size_t byteCount, int offset
 void readSuperBlock(int fd) {
 	FILE* writeFileStream = fopen("super.csv", "w+");
 
+	int superBlockOffset = 1024;
+
 	//Read magic number
 	unsigned char* buffer = malloc(64); 
-	preadLittleEndian(fd, buffer, 2, 1080); //1080 is where the magic number resides
+	preadLittleEndian(fd, buffer, 2, superBlockOffset + 56); 
+		//1080 is where the magic number resides
 		//no error checking
 	buffer[2] = '\0';
 
@@ -58,22 +61,22 @@ void readSuperBlock(int fd) {
 		buffer[0], buffer[1]);
 
 	//Read and store total number of inodes
-	preadLittleEndian(fd, buffer, 4, 1024); //Offset for inode count
+	preadLittleEndian(fd, buffer, 4, superBlockOffset); //Offset for inode count
 	inodeCount = getIntFromBuffer(buffer, 4);
 	fprintf(writeFileStream, "%d,", inodeCount);
 
 	//Read and store total number of blocks
-	preadLittleEndian(fd, buffer, 4, 1028); //Offset for block count
+	preadLittleEndian(fd, buffer, 4, superBlockOffset + 4); //Offset for block count
 	blockCount = getIntFromBuffer(buffer, 4);
 	fprintf(writeFileStream, "%d,", blockCount);
 
 	//Read and store block size
-	preadLittleEndian(fd, buffer, 4, 1048); //Offset for block count
+	preadLittleEndian(fd, buffer, 4, superBlockOffset + 24); //Offset for block size
 	blockSize = 1024 << getIntFromBuffer(buffer, 4);
 	fprintf(writeFileStream, "%d,", blockSize);
 
 	//Read and store fragment size
-	preadLittleEndian(fd, buffer, 4, 1052); //Offset for fragment size
+	preadLittleEndian(fd, buffer, 4, superBlockOffset + 28); //Offset for fragment size
 	fragmentSize = getIntFromBuffer(buffer, 4);
 	if (fragmentSize > 0) {
 		fragmentSize = 1024 << fragmentSize;
@@ -82,28 +85,32 @@ void readSuperBlock(int fd) {
 	fprintf(writeFileStream, "%d,", fragmentSize);
 
 	//Read and store blocks per group
-	preadLittleEndian(fd, buffer, 4, 1056); //Offset for blocks per group
+	preadLittleEndian(fd, buffer, 4, superBlockOffset + 32); //Offset for blocks per group
 	blocksPerGroup = getIntFromBuffer(buffer, 4);
 	fprintf(writeFileStream, "%d,", blocksPerGroup);
 
 	//Read and store inodes per group
-	preadLittleEndian(fd, buffer, 4, 1064); //Offset for inodes per group
+	preadLittleEndian(fd, buffer, 4, superBlockOffset + 40); //Offset for inodes per group
 	inodesPerGroup = getIntFromBuffer(buffer, 4);
 	fprintf(writeFileStream, "%d,", inodesPerGroup);
 
 	//Read and store fragments per group
-	preadLittleEndian(fd, buffer, 4, 1060); //Offset for fragments per group
+	preadLittleEndian(fd, buffer, 4, superBlockOffset + 36); //Offset for fragments per group
 	fragmentsPerGroup = getIntFromBuffer(buffer, 4);
 	fprintf(writeFileStream, "%d,", fragmentsPerGroup);
 
 	//Read and store first data block, as well as newline
-	preadLittleEndian(fd, buffer, 4, 1044); //Offset for fist data block
+	preadLittleEndian(fd, buffer, 4, superBlockOffset + 20); //Offset for fist data block
 	firstDataBlock = getIntFromBuffer(buffer, 4);
 	fprintf(writeFileStream, "%d\n", firstDataBlock);
 
 	fflush(writeFileStream);
 }
 
+//Creates the csv of free blocks as specified by the bitmap. Returns a list 
+void createBitmapEntryList(int fd) {
+	
+}
 
 int main (int argc, const char* argv[]) {
 	if (argc != 2) {
