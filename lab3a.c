@@ -20,6 +20,18 @@ int * freeBlockCount;
 int * freeInodeCount;
 int * directoryCount;
 
+struct groupDescriptorFields {
+	int containedBlockCount;
+	int freeBlockCount;
+	int freeInodeCount;
+	int directoryCount;
+	char * inodeBitmapBlock;
+	char * blockBitmapBlock;
+	char * inodeTableBlock;
+};
+
+struct groupDescriptorFields * groupDescriptors;
+
 //Since the file format is in a little endian format, it is useful to turn those bytes into 
 //a big endian format (expected by the csv) procedurally. This function does this.
 ssize_t preadLittleEndian(int fd, unsigned char* buffer, size_t count, off_t offset) {
@@ -126,10 +138,7 @@ void readGroupDescriptor(int fd) {
 
 	//printf("num groups %d, leftover blocks %d, blocks per group %d\n", numGroups, blockCount % blocksPerGroup, blocksPerGroup);
 
-	containedBlockCount 	= malloc(numGroups * sizeof(int));
-	freeBlockCount	 		= malloc(numGroups * sizeof(int));
-	freeInodeCount		 	= malloc(numGroups * sizeof(int));
-	directoryCount		 	= malloc(numGroups * sizeof(int));
+	groupDescriptors = malloc(numGroups * sizeof(struct groupDescriptorFields));
 
 	int i;
 	//read and store group descriptor values for each group
