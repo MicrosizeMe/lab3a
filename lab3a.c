@@ -38,6 +38,19 @@ struct groupDescriptorFields {
 
 struct groupDescriptorFields* groupDescriptors;
 
+//A list of the inode numbers of allocated inodes
+unsigned long* listOfAllocatedInodes;
+unsigned long allocatedInodeCount;
+
+//A list of the inode numbers that point to directories
+unsigned long* listOfDirectoryInodes;
+unsigned long directoryInodeCount;
+
+//A list of the inode numbers that contain single, double, and triple indirect pointers
+unsigned long* listOfDirectoryInodes;
+unsigned long directoryInodeCount;
+
+
 //Since the file format is in a little endian format, it is useful to turn those bytes into 
 //a big endian format (expected by the csv) procedurally. This function does this.
 ssize_t preadLittleEndian(int fd, unsigned char* buffer, size_t count, off_t offset) {
@@ -231,6 +244,9 @@ void readFreeBitmapEntry(int fd) {
 		unsigned long inodeStartOffset = 1 + group * inodesPerGroup;
 		unsigned long inodeByteStartOffset = inodeBitmapBlock * blockSize;
 
+		listOfAllocatedInodes = malloc(allocatedInodeCount * sizeof(unsigned long));
+		allocatedInodeCount = 0;
+
 		for (int i = 0; i < inodesPerGroup; i++) {
 			unsigned char buffer;
 			pread(fd, &buffer, 1, inodeByteStartOffset + i / 8);
@@ -239,6 +255,10 @@ void readFreeBitmapEntry(int fd) {
 				//Found an empty data block, mark accordingly
 				fprintf(writeFileStream, "%lx,%lu\n", inodeBitmapBlock,
 					inodeStartOffset + i);
+			}
+			else {
+				listOfAllocatedInodes[allocatedInodeCount] = inodeStartOffset + i;
+				allocatedInodeCount++;
 			}
 		}
 	}
