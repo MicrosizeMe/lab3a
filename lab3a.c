@@ -15,10 +15,12 @@ int inodesPerGroup;
 int fragmentsPerGroup;
 int firstDataBlock;
 
+/*
 int * containedBlockCount;
 int * freeBlockCount;
 int * freeInodeCount;
 int * directoryCount;
+*/
 
 struct groupDescriptorFields {
 	int containedBlockCount;
@@ -145,25 +147,26 @@ void readGroupDescriptor(int fd) {
 	for (i = 0; i < numGroups; i++){
 		//Read and store number of free blocks
 		preadLittleEndian(fd, buffer, 2, startGroupDescriptor + (32*i) + 12); //Offset for free blocks
-		freeBlockCount[i] = getIntFromBuffer(buffer, 2);
+		groupDescriptors[i].freeBlockCount = getIntFromBuffer(buffer, 2);
 
 		//Calculate number of contained blocks
 		if (i == numGroups - 1 && lastBlockSize > 0)
-			containedBlockCount[i] = lastBlockSize;
+			groupDescriptors[i].containedBlockCount = lastBlockSize;
 		else
-			containedBlockCount[i] = blocksPerGroup;
+			groupDescriptors[i].containedBlockCount = blocksPerGroup;
 
 		//Read and store number of free inodes
 		preadLittleEndian(fd, buffer, 2, startGroupDescriptor + (32*i) + 14); //Offset for free inodes
-		freeInodeCount[i] = getIntFromBuffer(buffer, 2);
+		groupDescriptors[i].freeInodeCount = getIntFromBuffer(buffer, 2);
 
 		//Read and store number of directories
 		preadLittleEndian(fd, buffer, 2, startGroupDescriptor + (32*i) + 16); //Offset for directories
-		directoryCount[i] = getIntFromBuffer(buffer, 2);
+		groupDescriptors[i].directoryCount = getIntFromBuffer(buffer, 2);
 
 		//print stuff
 		fprintf(writeFileStream, "%d,%d,%d,%d\n", 
-			containedBlockCount[i], freeBlockCount[i], freeInodeCount[i], directoryCount[i]);
+			groupDescriptors[i].containedBlockCount, groupDescriptors[i].freeBlockCount, 
+			groupDescriptors[i].freeInodeCount, groupDescriptors[i].directoryCount);
 	}
 }
 
