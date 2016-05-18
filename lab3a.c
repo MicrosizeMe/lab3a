@@ -15,22 +15,22 @@ int inodesPerGroup;
 int fragmentsPerGroup;
 int firstDataBlock;
 
-int * containedBlockCount;
-int * freeBlockCount;
-int * freeInodeCount;
-int * directoryCount;
+int* containedBlockCount;
+int* freeBlockCount;
+int* freeInodeCount;
+int* directoryCount;
 
 struct groupDescriptorFields {
 	int containedBlockCount;
 	int freeBlockCount;
 	int freeInodeCount;
 	int directoryCount;
-	char * inodeBitmapBlock;
-	char * blockBitmapBlock;
-	char * inodeTableBlock;
+	char* inodeBitmapBlock;
+	char* blockBitmapBlock;
+	char* inodeTableBlock;
 };
 
-struct groupDescriptorFields * groupDescriptors;
+struct groupDescriptorFields* groupDescriptors;
 
 //Since the file format is in a little endian format, it is useful to turn those bytes into 
 //a big endian format (expected by the csv) procedurally. This function does this.
@@ -170,6 +170,11 @@ void readGroupDescriptor(int fd) {
 	}
 }
 
+//Prints the block number of a free block and the map that free information came from
+//into the corresponding csv. 
+void readFreeBitmapEntry(int fd) {
+	groupDescriptors
+}
 
 int main (int argc, const char* argv[]) {
 	if (argc != 2) {
