@@ -15,6 +15,8 @@ int inodesPerGroup;
 int fragmentsPerGroup;
 int firstDataBlock;
 
+int numGroups;
+
 /*
 int * containedBlockCount;
 int * freeBlockCount;
@@ -132,7 +134,7 @@ void readGroupDescriptor(int fd) {
 	int startGroupDescriptor = (firstDataBlock + 1) * blockSize;
 
 	//Calculate number of block groups
-	int numGroups = (blockCount / blocksPerGroup);
+	numGroups = (blockCount / blocksPerGroup);
 	int lastBlockSize = (blockCount % blocksPerGroup);
 
 	if (lastBlockSize > 0)
@@ -162,6 +164,20 @@ void readGroupDescriptor(int fd) {
 		//Read and store number of directories
 		preadLittleEndian(fd, buffer, 2, startGroupDescriptor + (32*i) + 16); //Offset for directories
 		groupDescriptors[i].directoryCount = getIntFromBuffer(buffer, 2);
+
+		//allocate space for hex values
+		groupDescriptors[i].inodeBitmapBlock = malloc(4 * sizeof(char));
+		groupDescriptors[i].blockBitmapBlock = malloc(4 * sizeof(char));
+		groupDescriptors[i].inodeTableBlock = malloc(4 * sizeof(char));
+
+		preadLittleEndian(fd, groupDescriptors[i].inodeBitmapBlock, 4, startGroupDescriptor + (32*i) + 4); //Offset for inode bitmap block
+		groupDescriptors[i].inodeBitmapBlock[4] = '\0';
+
+		preadLittleEndian(fd, groupDescriptors[i].blockBitmapBlock, 4, startGroupDescriptor + (32*i)); //Offset for inode bitmap block
+		blockDescriptors[i].blockBitmapBlock[4] = '\0';
+
+		preadLittleEndian(fd, groupDescriptors[i].inodeTableBlock, 4, startGroupDescriptor + (32*i) + 4); //Offset for inode bitmap block
+		groupDescriptors[i].inodeTableBlock[4] = '\0';
 
 		//print stuff
 		fprintf(writeFileStream, "%d,%d,%d,%d\n", 
