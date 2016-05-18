@@ -49,7 +49,7 @@ ssize_t preadLittleEndian(int fd, unsigned char* buffer, size_t count, off_t off
 }
 
 //Returns the corresponding integer from a big-endian buffer containing the raw bytes
-int getIntFromBuffer(unsigned char* buffer, size_t count) {
+unsigned int getIntFromBuffer(unsigned char* buffer, size_t count) {
 	unsigned int returnInt = 0;
 	for (int i = 0; i < count; i++) {
 		returnInt = (returnInt << 8) + buffer[i];
@@ -192,6 +192,57 @@ void readGroupDescriptor(int fd) {
 //Prints the block number of a free block and the map that free information came from
 //into the corresponding csv. 
 void readFreeBitmapEntry(int fd) {
+	FILE* writeFileStream = fopen("bitmap.csv", "w+");
+	//For each group...
+	for (int i = 0; i < numGroups; i++) {
+		struct groupDescriptorFields fields = groupDescriptors[i];
+		//For the data bitmap...
+		//Extract data bitmap location
+		unsigned long blockBitmapBlock = getIntFromBuffer(fields.blockBitmapBlock, 4);
+		
+		//Obtain some data block offset start location //TODO
+		unsigned long dataBlockStartOffset = 42;
+		unsigned long dataByteStartOffset = dataBlockStartOffset * blockSize;
+		for (int i = 0; i < 42/*some number of data blocks divided by 8*/; i++) {
+			char buffer;
+			pread(fd, &buffer, 1, dataByteStartOffset + i);
+			int byteOffset = 0;
+			unsigned int bitmask = 0x100;
+			for (int j = 0; j < 8; j++) {
+				bitmask = bitmask >> 1;
+				if (!(bitmask & buffer)) {
+					//Found an empty data block, mark accordingly
+					fprintf(writeFileStream, "%x,%d\n", blockBitmapBlock,
+						dataByteStartOffset + byteOffset);
+				}
+				byteOffset++;
+			}
+		}
+
+
+		//For the inode bitmap...
+		//Extract inode bitmap location
+		unsigned long inodeBitmapBlock = getIntFromBuffer(fields.inodeBitmapBlock, 4);
+
+		//Obtain some inode block offset start location //TODO
+		unsigned long inodeBlockStartOffset = 42;
+		unsigned long inodeByteStartOffset = inodeBlockStartOffset * blockSize;
+		for (int i = 0; i < 42/*some number of data blocks divided by 8*/; i++) {
+			char buffer;
+			pread(fd, &buffer, 1, inodeByteStartOffset + i);
+			int byteOffset = 0;
+			unsigned int bitmask = 0x100;
+			for (int j = 0; j < 8; j++) {
+				bitmask = bitmask >> 1;
+				if (!(bitmask & buffer)) {
+					//Found an empty data block, mark accordingly
+					fprintf(writeFileStream, "%x,%d\n", inodeBitmapBlock,
+						inodeByteStartOffset + byteOffset);
+				}
+				byteOffset++;
+			}
+		}
+	}
 	groupDescriptors
 }
 
