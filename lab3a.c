@@ -15,6 +15,11 @@ int inodesPerGroup;
 int fragmentsPerGroup;
 int firstDataBlock;
 
+int * containedBlockCount;
+int * freeBlockCount;
+int * freeInodeCount;
+int * directoryCount;
+
 //Since the file format is in a little endian format, it is useful to turn those bytes into 
 //a big endian format (expected by the csv) procedurally. This function does this.
 ssize_t preadLittleEndian(int fd, unsigned char* buffer, size_t count, off_t offset) {
@@ -97,11 +102,60 @@ void readSuperBlock(int fd) {
 	fprintf(writeFileStream, "%d,", fragmentsPerGroup);
 
 	//Read and store first data block, as well as newline
-	preadLittleEndian(fd, buffer, 4, 1044); //Offset for fist data block
+	preadLittleEndian(fd, buffer, 4, 1044); //Offset for first data block
 	firstDataBlock = getIntFromBuffer(buffer, 4);
 	fprintf(writeFileStream, "%d\n", firstDataBlock);
 
 	fflush(writeFileStream);
+}
+
+void readGroupDescriptor(int fd) {
+	FILE* writeFileStream = fopen("group.csv", "w+");
+
+	unsigned char* buffer = malloc(16); 
+
+	//offset for group descriptor
+	int startGroupDescriptor = (firstDataBlock + 1) * blockSize;
+
+	//Calculate number of block groups
+	int numGroups = (blockCount / blocksPerGroup);
+	int lastBlockSize = (blockCount % blocksPerGroup);
+
+	if (lastBlockSize > 0)
+		numGroups++;
+
+	//printf("num groups %d, leftover blocks %d, blocks per group %d\n", numGroups, blockCount % blocksPerGroup, blocksPerGroup);
+
+	containedBlockCount 	= malloc(numGroups * sizeof(int));
+	freeBlockCount	 		= malloc(numGroups * sizeof(int));
+	freeInodeCount		 	= malloc(numGroups * sizeof(int));
+	directoryCount		 	= malloc(numGroups * sizeof(int));
+
+	int i;
+	//read and store group descriptor values for each group
+	for (i = 0; i < numGroups; i++){
+		//Read and store number of free blocks
+		preadLittleEndian(fd, buffer, 2, startGroupDescriptor + (32*i) + 12); //Offset for free blocks
+		freeBlockCount[i] = getIntFromBuffer(buffer, 2);
+
+		//Calculate number of contained blocks
+		if (i == numGroups - 1 && lastBlockSize > 0)
+			containedBlockCount[i] = lastBlockSize;
+		else
+			containedBlockCount[i] = blocksPerGroup;
+
+		//Read and store number of free inodes
+		preadLittleEndian(fd, buffer, 2, startGroupDescriptor + (32*i) + 14); //Offset for free inodes
+		freeInodeCount[i] = getIntFromBuffer(buffer, 2);
+
+		//Read and store number of directories
+		preadLittleEndian(fd, buffer, 2, startGroupDescriptor + (32*i) + 16); //Offset for directories
+		directoryCount[i] = getIntFromBuffer(buffer, 2);
+
+		//print stuff
+		fprintf(writeFileStream, "%d,%d,%d,%d\n", 
+			containedBlockCount[i], freeBlockCount[i], freeInodeCount[i], directoryCount[i]);
+	}
 }
 
 
@@ -120,9 +174,10 @@ int main (int argc, const char* argv[]) {
 
 	unsigned char* buf = malloc(4);
 	preadLittleEndian(diskImageFD, buf, 4, 1064);
-	printf("%02X:%02X:%02X:%02X\n", buf[0], buf[1], buf[2], buf[3]);
+	//printf("%02X:%02X:%02X:%02X\n", buf[0], buf[1], buf[2], buf[3]);
 
-	printf("%d\n", getIntFromBuffer(buf, 4));
+	//printf("%d\n", getIntFromBuffer(buf, 4));
 
 	readSuperBlock(diskImageFD);
+	readGroupDescriptor(diskImageFD);
 }
