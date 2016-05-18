@@ -231,10 +231,6 @@ void readFreeBitmapEntry(int fd) {
 		unsigned long inodeStartOffset = 1 + group * inodesPerGroup;
 		unsigned long inodeByteStartOffset = inodeBitmapBlock * blockSize;
 
-
-		fprintf(stderr, "%lu\n", inodeStartOffset);
-		fprintf(stderr, "%lx\n", inodeBitmapBlock);
-
 		for (int i = 0; i < inodesPerGroup; i++) {
 			unsigned char buffer;
 			pread(fd, &buffer, 1, inodeByteStartOffset + i / 8);
