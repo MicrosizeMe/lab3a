@@ -186,6 +186,11 @@ void readGroupDescriptor(int fd) {
 
 		const char * temp = groupDescriptors[i].inodeBitmapBlock;
 		int j;
+
+		fprintf(writeFileStream, "%x,", getIntFromBuffer(groupDescriptors[i].inodeBitmapBlock, 4));
+		fprintf(writeFileStream, "%x,", getIntFromBuffer(groupDescriptors[i].blockBitmapBlock, 4));
+		fprintf(writeFileStream, "%x\n", getIntFromBuffer(groupDescriptors[i].inodeTableBlock, 4));
+		/*
 		int start = 0;
 		for (j = 0; j < 4; j++){
 			if (groupDescriptors[i].inodeBitmapBlock[j] != 0 | start == 1){
@@ -209,7 +214,8 @@ void readGroupDescriptor(int fd) {
 				start = 1;
 			}
 		}
-		fprintf(writeFileStream, "\n");
+		*/
+		//fprintf(writeFileStream, "\n");
 	}
 }
 
