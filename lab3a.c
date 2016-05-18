@@ -47,8 +47,8 @@ unsigned long* listOfDirectoryInodes;
 unsigned long directoryInodeCount;
 
 //A list of the inode numbers that contain single, double, and triple indirect pointers
-unsigned long* listOfDirectoryInodes;
-unsigned long directoryInodeCount;
+unsigned long* listOfIndirectInodes;
+unsigned long indirectInodeCount;
 
 
 //Since the file format is in a little endian format, it is useful to turn those bytes into 
@@ -263,6 +263,12 @@ void readFreeBitmapEntry(int fd) {
 		}
 	}
 	fflush(writeFileStream);
+}
+
+//Reads in inodes, populates pointers to denote found indoes with certain properties, 
+//and creates the csv
+void readInodes(int fd) {
+	
 }
 
 int main (int argc, const char* argv[]) {
