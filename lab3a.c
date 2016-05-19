@@ -420,12 +420,22 @@ void readDirectories(int fd){
 	//int lastDirectoryEntryFound = 0;
 
 	unsigned char* blockNumBuffer = malloc(64);
+	/*
+	if (blockNumBuffer == 0) {
+		printf("blockNumberBoffer == 0\n");
+	}
+	*/
 	//unsigned char* directoryBlock = malloc(64);
 	unsigned char* generalBuffer = malloc(64);
 
-	for (i = 0; i < directoryInodeCount; i++){
+	//printf("%lu\n", directoryInodeCount);
+
+	for (i = 0; i < directoryInodeCount; i++){ // loop through directory inodes
+		//printf("%d\n", i);
 		//get parent inode number
 		parentDirInode = listOfDirectoryInodes[i];
+
+		//printf("%lu\n", parentDirInode);
 
 		//find which group inode is in
 		int parentBlockGroup = (parentDirInode - 1) / inodesPerGroup;
@@ -449,7 +459,9 @@ void readDirectories(int fd){
 			}
 			*/
 			//copy data block number from parent inode
-			pread(fd, &blockNumBuffer, 4, parentInodeOffset + 40 + (4*j));
+			preadLittleEndian(fd, blockNumBuffer, 4, parentInodeOffset + 40 + (4*j));
+			//blockNumBuffer[4] = '\0';
+			//printf("%s\n", blockNumBuffer);
 			//if pointer is zero, no more data blocks to point to
 			if (getIntFromBuffer(blockNumBuffer, 4) == 0){
 				break;
@@ -460,18 +472,24 @@ void readDirectories(int fd){
 			//keep track of where in block the current spot is
 			int currentEntryOffset = directoryBlockOffset;
 
-			//for every entry, until last entry is found or reach end of block
+			//for every entry, until last entry is found / reaches end of block
 			while ((currentEntryOffset - directoryBlockOffset) < blockSize){
 				//increment entry number - this is why it starts at -1, because the first entry is 0
 				entryNo++;
 
+				//printf("%d\n", currentEntryOffset);
+
 				//Read inode number of entry
-				pread(fd, &generalBuffer, 4, currentEntryOffset);
+				preadLittleEndian(fd, generalBuffer, 4, currentEntryOffset);
 				entryInode = getIntFromBuffer(generalBuffer, 4);
 
 				//Read rec_len
-				pread(fd, &generalBuffer, 2, currentEntryOffset + 4);
+				preadLittleEndian(fd, generalBuffer, 2, currentEntryOffset + 4);
 				entryLen = getIntFromBuffer(generalBuffer, 2);
+				//printf("%d\n", entryLen);
+
+				if (entryLen == 0)
+					break;
 
 				//If inode number is 0, stop recording info, increment current offset, move onto next entry
 				if (entryInode == 0){
@@ -481,11 +499,11 @@ void readDirectories(int fd){
 
 				//else, continue recording and print info
 				//get name length
-				pread(fd, &generalBuffer, 1, currentEntryOffset + 6);
+				preadLittleEndian(fd, generalBuffer, 1, currentEntryOffset + 6);
 				nameLen = getIntFromBuffer(generalBuffer, 1);
 
 				//get name
-				pread(fd, &name, nameLen, currentEntryOffset + 8);
+				preadLittleEndian(fd, name, nameLen, currentEntryOffset + 8);
 				name[nameLen] = '\0';
 
 				//print entry info
@@ -522,4 +540,5 @@ int main (int argc, const char* argv[]) {
 	readGroupDescriptor(diskImageFD);
 	readFreeBitmapEntry(diskImageFD);
 	readInodes(diskImageFD);
+	readDirectories(diskImageFD);
 }
