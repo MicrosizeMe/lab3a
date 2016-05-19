@@ -212,9 +212,42 @@ void readGroupDescriptor(int fd) {
 		groupDescriptors[i].inodeTableBlock[4] = '\0';
 
 		//print stuff
-		fprintf(writeFileStream, "%d,%d,%d,%d\n", 
+		fprintf(writeFileStream, "%d,%d,%d,%d,", 
 			groupDescriptors[i].containedBlockCount, groupDescriptors[i].freeBlockCount, 
 			groupDescriptors[i].freeInodeCount, groupDescriptors[i].directoryCount);
+
+		const char * temp = groupDescriptors[i].inodeBitmapBlock;
+		int j;
+
+		fprintf(writeFileStream, "%x,", getIntFromBuffer(groupDescriptors[i].inodeBitmapBlock, 4));
+		fprintf(writeFileStream, "%x,", getIntFromBuffer(groupDescriptors[i].blockBitmapBlock, 4));
+		fprintf(writeFileStream, "%x\n", getIntFromBuffer(groupDescriptors[i].inodeTableBlock, 4));
+		/*
+		int start = 0;
+		for (j = 0; j < 4; j++){
+			if (groupDescriptors[i].inodeBitmapBlock[j] != 0 | start == 1){
+				fprintf(writeFileStream, "%02x", groupDescriptors[i].inodeBitmapBlock[j]);
+				start = 1;
+			}
+		}
+		start = 0;
+		fprintf(writeFileStream, ",");
+		for (j = 0; j < 4; j++){
+			if (groupDescriptors[i].blockBitmapBlock[j] != 0 | start == 1){
+				fprintf(writeFileStream, "%02x", groupDescriptors[i].blockBitmapBlock[j]);
+				start = 1;
+			}
+		}
+		start = 0;
+		fprintf(writeFileStream, ",");
+		for (j = 0; j < 4; j++){
+			if (groupDescriptors[i].inodeTableBlock[j] != 0 | start == 1){
+				fprintf(writeFileStream, "%02x", groupDescriptors[i].inodeTableBlock[j]);
+				start = 1;
+			}
+		}
+		*/
+		//fprintf(writeFileStream, "\n");
 	}
 }
 
