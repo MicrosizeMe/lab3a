@@ -10,5 +10,5 @@ lab3a: lab3a.c
 	
 dist: $(DISTNAME)
 
-$(DISTNAME) : Makefile lab2c.c README SortedList.h SortedList.c timePerOperation.png
+$(DISTNAME) : Makefile lab3a.c README
 	tar -cvzf $(DISTNAME) $^

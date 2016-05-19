@@ -1,0 +1,13 @@
+Included files: lab3a.c, which includes all tests and operations
+				Makefile, which makes the file and distribution
+				README, this file
+
+Team members and UIDs:
+	Anbo Wei: 604480880
+	Sabrina Chiang: 204411921
+
+
+Using two slip days from Anbo Wei, none from Sabrina Chiang
+
+Testing methodology is simply to compare using diff between results from the program to
+the given samples. 
