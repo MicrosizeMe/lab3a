@@ -73,6 +73,21 @@ unsigned int getIntFromBuffer(unsigned char* buffer, size_t count) {
 	return returnInt;
 }
 
+//Returns the byte offset for a specific inode. Assumes inode group descriptor 
+//is initialized.
+unsigned long getInodeByteOffset(unsigned long inodeNumber) {
+	unsigned long blockGroup = (inodeNumber - 1) / inodesPerGroup;
+	unsigned long localInodeIndex = (inodeNumber - 1) % inodesPerGroup;
+
+	unsigned long inodeByteOffset = 
+		getIntFromBuffer(groupDescriptors[blockGroup].inodeTableBlock, 4)
+			* blockSize //The byte offset of the inode table for this particular inode
+						//(created by block number of that table * bytes per block)
+		+ localInodeIndex * bytesPerInode; //The number of bytes into the table this
+										   //inode resides
+	return inodeByteOffset;
+}		
+
 void readSuperBlock(int fd) {
 	FILE* writeFileStream = fopen("super.csv", "w+");
 
@@ -298,15 +313,7 @@ void readInodes(int fd) {
 	for (int i = 0; i < allocatedInodeCount; i++) {
 		unsigned long currentInodeNumber = listOfAllocatedInodes[i];
 		//Locate the inode from the inode number
-		unsigned long blockGroup = (currentInodeNumber - 1) / inodesPerGroup;
-		unsigned long localInodeIndex = (currentInodeNumber - 1) % inodesPerGroup;
-
-		unsigned long inodeByteOffset = 
-			getIntFromBuffer(groupDescriptors[blockGroup].inodeTableBlock, 4)
-				* blockSize //The byte offset of the inode table for this particular inode
-							//(created by block number of that table * bytes per block)
-			+ localInodeIndex * bytesPerInode; //The number of bytes into the table this
-											   //inode resides
+		unsigned long inodeByteOffset = getInodeByteOffset(currentInodeNumber);
 
 		//Write inode number to inode.csv
 		fprintf(writeFileStream, "%lu,", currentInodeNumber);
@@ -386,14 +393,14 @@ void readInodes(int fd) {
 		//Block pointers
 		unsigned int blockPointerArrayOffset = 40;
 		int added = 0;
-		for (int i = 0; i < 15; i++) {
+		for (int j = 0; j < 15; j++) {
 			//Read the ith pointer. Each pointer is 4 bytes wide. 
 			preadLittleEndian(fd, buffer, 4, 
-				inodeByteOffset + blockPointerArrayOffset + i * 4);
+				inodeByteOffset + blockPointerArrayOffset + j * 4);
 			//First add a comma, then write the pointer
 			int pointerValue = getIntFromBuffer(buffer, 4);
 			fprintf(writeFileStream, ",%x", pointerValue);
-			if (pointerValue != 0 && i >= 12 && !added) { 
+			if (pointerValue != 0 && j >= 12 && !added) { 
 				//Pointer 12 on points to indirect pointers and we haven't already added it
 				listOfIndirectInodes[indirectInodeCount] = currentInodeNumber;
 				indirectInodeCount++;
@@ -402,6 +409,86 @@ void readInodes(int fd) {
 		}
 		fprintf(writeFileStream, "\n");
 		fflush(writeFileStream);
+	}
+}
+
+/*	Given a file descriptor of the file system image, a write stream file pointer, 
+	an unsigned block pointer to the indirect block, and the level of indirectiveness of this
+	block, recursively prints all information of this block in the format: 
+	
+	blockPointer(hex),tableEntryNumber(dec),blockPointerValue(hex, if non-zero)
+*/
+void printBlockInfo(int fd, FILE* writeFileStream, unsigned long blockPointer, int level) {
+	//Get the byte offset of the current indirect block
+	unsigned long indirectBlockByteOffset = blockPointer * blockSize;
+
+	char* buffer[5];
+	//Loop through each entry of the block, printing any valid pointers found.
+	for (unsigned int i = 0; i < blockSize / 4; i++) { 
+		//Since each block pointer has size 4, you at most find blockSize / 4 entries.
+
+		//Get the block pointer number
+		preadLittleEndian(fd, buffer, 4, indirectBlockByteOffset + i * 4);
+		unsigned int pointerValue = getIntFromBuffer(buffer, 4);
+
+		//If the pointer value isn't zero, print it. Otherwise, skip it
+		if (pointerValue != 0) {
+			fprintf(writeFileStream, "%lx,%u,%lx\n", blockPointer, i, pointerValue);
+		}
+	}
+
+	//If your indirect level is 1, all pointers in the table are real data blocks. Stop.
+	if (level <= 1) return;
+
+	//Loop through each entry of the block, recursively calling this function on the 
+	//corresponding pointer. 
+	for (unsigned int i = 0; i < blockSize / 4; i++) { 
+		//Since each block pointer has size 4, you at most find blockSize / 4 entries.
+
+		//Get the block pointer number
+		preadLittleEndian(fd, buffer, 4, indirectBlockByteOffset + i * 4);
+		unsigned int pointerValue = getIntFromBuffer(buffer, 4);
+
+		//If the pointer value isn't zero, recursively call this function with a lower level
+		//and the corresponding pointer.
+		if (pointerValue != 0) 
+			printBlockInfo(fd, writeFileStream, pointerValue, level - 1);
+	}
+}
+//Reads the list of indirect nodes generated from readInodes and outputs the relevant 
+//information into the corresponding csv file
+void readIndirectBlockEntries(int fd) {
+	FILE* writeFileStream = fopen("indirect.csv", "w+");
+
+	char* buffer[5];
+	for (int i = 0; i < indirectInodeCount; i++) {
+		unsigned long currentInodeNumber = listOfIndirectInodes[i];
+		//Locate the inode from the inode number
+		unsigned long inodeByteOffset = getInodeByteOffset(currentInodeNumber);
+
+		//Find the indirect pointers
+		unsigned int blockPointerArrayOffset = 40;
+
+		//Start with single indirect pointers
+		preadLittleEndian(fd, buffer, 4, 
+			inodeByteOffset + blockPointerArrayOffset + 12 * 4);
+		unsigned long pointer = getIntFromBuffer(buffer, 4);
+		if (pointer != 0)
+			printBlockInfo(fd, writeFileStream, pointer, 1);
+		
+		//Double indirect pointers
+		preadLittleEndian(fd, buffer, 4, 
+			inodeByteOffset + blockPointerArrayOffset + 13 * 4);
+		pointer = getIntFromBuffer(buffer, 4);
+		if (pointer != 0)
+			printBlockInfo(fd, writeFileStream, pointer, 2);
+		
+		//Triple indirect pointers
+		preadLittleEndian(fd, buffer, 4, 
+			inodeByteOffset + blockPointerArrayOffset + 14 * 4);
+		pointer = getIntFromBuffer(buffer, 4);
+		if (pointer != 0)
+			printBlockInfo(fd, writeFileStream, pointer, 3);
 	}
 }
 
