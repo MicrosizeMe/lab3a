@@ -422,7 +422,7 @@ void printBlockInfo(int fd, FILE* writeFileStream, unsigned long blockPointer, i
 	//Get the byte offset of the current indirect block
 	unsigned long indirectBlockByteOffset = blockPointer * blockSize;
 
-	char* buffer[5];
+	unsigned char buffer[5];
 	//Loop through each entry of the block, printing any valid pointers found.
 	for (unsigned int i = 0; i < blockSize / 4; i++) { 
 		//Since each block pointer has size 4, you at most find blockSize / 4 entries.
@@ -433,7 +433,7 @@ void printBlockInfo(int fd, FILE* writeFileStream, unsigned long blockPointer, i
 
 		//If the pointer value isn't zero, print it. Otherwise, skip it
 		if (pointerValue != 0) {
-			fprintf(writeFileStream, "%lx,%u,%lx\n", blockPointer, i, pointerValue);
+			fprintf(writeFileStream, "%lx,%u,%x\n", blockPointer, i, pointerValue);
 		}
 	}
 
@@ -454,13 +454,14 @@ void printBlockInfo(int fd, FILE* writeFileStream, unsigned long blockPointer, i
 		if (pointerValue != 0) 
 			printBlockInfo(fd, writeFileStream, pointerValue, level - 1);
 	}
+	fflush(writeFileStream);
 }
 //Reads the list of indirect nodes generated from readInodes and outputs the relevant 
 //information into the corresponding csv file
 void readIndirectBlockEntries(int fd) {
 	FILE* writeFileStream = fopen("indirect.csv", "w+");
 
-	char* buffer[5];
+	unsigned char buffer[5];
 	for (int i = 0; i < indirectInodeCount; i++) {
 		unsigned long currentInodeNumber = listOfIndirectInodes[i];
 		//Locate the inode from the inode number
@@ -515,4 +516,7 @@ int main (int argc, const char* argv[]) {
 	readGroupDescriptor(diskImageFD);
 	readFreeBitmapEntry(diskImageFD);
 	readInodes(diskImageFD);
+
+	
+	readIndirectBlockEntries(diskImageFD);
 }
