@@ -193,11 +193,7 @@ void readGroupDescriptor(int fd) {
 		preadLittleEndian(fd, groupDescriptors[i].blockBitmapBlock, 4, startGroupDescriptor + (32*i)); //Offset for inode bitmap block
 		groupDescriptors[i].blockBitmapBlock[4] = '\0';
 
-<<<<<<< HEAD
-		preadLittleEndian(fd, groupDescriptors[i].inodeTableBlock, 4, startGroupDescriptor + (32*i) + 8); //Offset for inode bitmap block
-=======
 		preadLittleEndian(fd, groupDescriptors[i].inodeTableBlock, 4, startGroupDescriptor + (32*i) + 8); //Offset for inode table block
->>>>>>> master
 		groupDescriptors[i].inodeTableBlock[4] = '\0';
 
 		//print stuff
