@@ -412,7 +412,6 @@ void readInodes(int fd) {
 	}
 }
 
-<<<<<<< HEAD
 void readDirectories(int fd){
 	FILE* writeFileStream = fopen("directory.csv", "w+");
 	//For every directory inode, loop
@@ -445,14 +444,7 @@ void readDirectories(int fd){
 
 		//printf("%lu\n", parentDirInode);
 
-		//find which group inode is in
-		int parentBlockGroup = (parentDirInode - 1) / inodesPerGroup;
-		//find local inode index
-		int localParentIndex = (parentDirInode - 1) % inodesPerGroup;
-
-		//locate parent inode
-		int parentInodeOffset = (getIntFromBuffer(groupDescriptors[parentBlockGroup].inodeTableBlock, 4)) 
-			+ (bytesPerInode * localParentIndex);
+		int parentInodeOffset = getInodeByteOffset(parentDirInode);
 
 		//keep track of entry number
 		entryNo = -1;
@@ -496,8 +488,10 @@ void readDirectories(int fd){
 				entryLen = getIntFromBuffer(generalBuffer, 2);
 				//printf("%d\n", entryLen);
 
+/*
 				if (entryLen == 0)
 					break;
+					*/
 
 				//If inode number is 0, stop recording info, increment current offset, move onto next entry
 				if (entryInode == 0){
@@ -511,11 +505,11 @@ void readDirectories(int fd){
 				nameLen = getIntFromBuffer(generalBuffer, 1);
 
 				//get name
-				preadLittleEndian(fd, name, nameLen, currentEntryOffset + 8);
+				pread(fd, name, nameLen, currentEntryOffset + 8);
 				name[nameLen] = '\0';
 
 				//print entry info
-				fprintf(writeFileStream, "%ld,%d,%d,%d,%d,%s\n", 
+				fprintf(writeFileStream, "%ld,%d,%d,%d,%d,\"%s\"\n", 
 					parentDirInode, entryNo, entryLen, nameLen, entryInode, name);
 
 				//increment current offset
@@ -523,7 +517,8 @@ void readDirectories(int fd){
 			} //end entry-reading loop
 		} //end block-traversing loop
 	} //end directory-traversing loop
-=======
+}
+
 /*	Given a file descriptor of the file system image, a write stream file pointer, 
 	an unsigned block pointer to the indirect block, and the level of indirectiveness of this
 	block, recursively prints all information of this block in the format: 
@@ -603,7 +598,6 @@ void readIndirectBlockEntries(int fd) {
 		if (pointer != 0)
 			printBlockInfo(fd, writeFileStream, pointer, 3);
 	}
->>>>>>> master
 }
 
 int main (int argc, const char* argv[]) {
@@ -629,11 +623,6 @@ int main (int argc, const char* argv[]) {
 	readGroupDescriptor(diskImageFD);
 	readFreeBitmapEntry(diskImageFD);
 	readInodes(diskImageFD);
-<<<<<<< HEAD
 	readDirectories(diskImageFD);
-=======
-
-	
 	readIndirectBlockEntries(diskImageFD);
->>>>>>> master
 }
