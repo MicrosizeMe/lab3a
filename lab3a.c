@@ -445,6 +445,113 @@ void readInodes(int fd) {
 	}
 }
 
+void readDirectories(int fd){
+	FILE* writeFileStream = fopen("directory.csv", "w+");
+	//For every directory inode, loop
+	//save field values here
+	int i, j;
+	unsigned long parentDirInode;
+	int entryNo;
+	int entryLen = 0; //start at offset 0 when looking at directory entries
+	int nameLen;
+	int entryInode;
+	unsigned char * name = malloc(256);
+
+	//int lastDirectoryEntryFound = 0;
+
+	unsigned char* blockNumBuffer = malloc(64);
+	/*
+	if (blockNumBuffer == 0) {
+		printf("blockNumberBoffer == 0\n");
+	}
+	*/
+	//unsigned char* directoryBlock = malloc(64);
+	unsigned char* generalBuffer = malloc(64);
+
+	//printf("%lu\n", directoryInodeCount);
+
+	for (i = 0; i < directoryInodeCount; i++){ // loop through directory inodes
+		//printf("%d\n", i);
+		//get parent inode number
+		parentDirInode = listOfDirectoryInodes[i];
+
+		//printf("%lu\n", parentDirInode);
+
+		int parentInodeOffset = getInodeByteOffset(parentDirInode);
+
+		//keep track of entry number
+		entryNo = -1;
+		entryLen = 0;
+
+		//loop through blocks pointed to by parent inode
+		for (j = 0; j < 15; j++){
+			/*
+			//check that last entry hasn't been found yet
+			if (lastDirectoryEntryFound){
+				break;
+			}
+			*/
+			//copy data block number from parent inode
+			preadLittleEndian(fd, blockNumBuffer, 4, parentInodeOffset + 40 + (4*j));
+			//blockNumBuffer[4] = '\0';
+			//printf("%s\n", blockNumBuffer);
+			//if pointer is zero, no more data blocks to point to
+			if (getIntFromBuffer(blockNumBuffer, 4) == 0){
+				break;
+			}
+			//find block offset with directory entries
+			int directoryBlockOffset = getIntFromBuffer(blockNumBuffer, 4) * blockSize;
+
+			//keep track of where in block the current spot is
+			int currentEntryOffset = directoryBlockOffset;
+
+			//for every entry, until last entry is found / reaches end of block
+			while ((currentEntryOffset - directoryBlockOffset) < blockSize){
+				//increment entry number - this is why it starts at -1, because the first entry is 0
+				entryNo++;
+
+				//printf("%d\n", currentEntryOffset);
+
+				//Read inode number of entry
+				preadLittleEndian(fd, generalBuffer, 4, currentEntryOffset);
+				entryInode = getIntFromBuffer(generalBuffer, 4);
+
+				//Read rec_len
+				preadLittleEndian(fd, generalBuffer, 2, currentEntryOffset + 4);
+				entryLen = getIntFromBuffer(generalBuffer, 2);
+				//printf("%d\n", entryLen);
+
+/*
+				if (entryLen == 0)
+					break;
+					*/
+
+				//If inode number is 0, stop recording info, increment current offset, move onto next entry
+				if (entryInode == 0){
+					currentEntryOffset += entryLen;
+					continue;
+				}
+
+				//else, continue recording and print info
+				//get name length
+				preadLittleEndian(fd, generalBuffer, 1, currentEntryOffset + 6);
+				nameLen = getIntFromBuffer(generalBuffer, 1);
+
+				//get name
+				pread(fd, name, nameLen, currentEntryOffset + 8);
+				name[nameLen] = '\0';
+
+				//print entry info
+				fprintf(writeFileStream, "%ld,%d,%d,%d,%d,\"%s\"\n", 
+					parentDirInode, entryNo, entryLen, nameLen, entryInode, name);
+
+				//increment current offset
+				currentEntryOffset += entryLen;
+			} //end entry-reading loop
+		} //end block-traversing loop
+	} //end directory-traversing loop
+}
+
 /*	Given a file descriptor of the file system image, a write stream file pointer, 
 	an unsigned block pointer to the indirect block, and the level of indirectiveness of this
 	block, recursively prints all information of this block in the format: 
@@ -549,7 +656,6 @@ int main (int argc, const char* argv[]) {
 	readGroupDescriptor(diskImageFD);
 	readFreeBitmapEntry(diskImageFD);
 	readInodes(diskImageFD);
-
-	
+	readDirectories(diskImageFD);
 	readIndirectBlockEntries(diskImageFD);
 }
