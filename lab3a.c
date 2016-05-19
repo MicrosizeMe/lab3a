@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 int inodeCount;
 int blockCount;
@@ -156,6 +157,9 @@ void readGroupDescriptor(int fd) {
 	//printf("num groups %d, leftover blocks %d, blocks per group %d\n", numGroups, blockCount % blocksPerGroup, blocksPerGroup);
 
 	groupDescriptors = malloc(numGroups * sizeof(struct groupDescriptorFields));
+	if (groupDescriptors == 0) {
+		fprintf(stderr, "Memory allocation error at 161\n");
+	}
 
 	int i;
 	//read and store group descriptor values for each group
@@ -189,7 +193,7 @@ void readGroupDescriptor(int fd) {
 		preadLittleEndian(fd, groupDescriptors[i].blockBitmapBlock, 4, startGroupDescriptor + (32*i)); //Offset for inode bitmap block
 		groupDescriptors[i].blockBitmapBlock[4] = '\0';
 
-		preadLittleEndian(fd, groupDescriptors[i].inodeTableBlock, 4, startGroupDescriptor + (32*i) + 4); //Offset for inode bitmap block
+		preadLittleEndian(fd, groupDescriptors[i].inodeTableBlock, 4, startGroupDescriptor + (32*i) + 8); //Offset for inode table block
 		groupDescriptors[i].inodeTableBlock[4] = '\0';
 
 		//print stuff
@@ -203,6 +207,13 @@ void readGroupDescriptor(int fd) {
 //into the corresponding csv. 
 void readFreeBitmapEntry(int fd) {
 	FILE* writeFileStream = fopen("bitmap.csv", "w+");
+
+	listOfAllocatedInodes = malloc(inodeCount * sizeof(unsigned long));
+	if (listOfAllocatedInodes == 0) {
+		fprintf(stderr, "Memory allocation error at 213\n");
+	}
+	allocatedInodeCount = 0;
+
 	//For each group...
 	for (int group = 0; group < numGroups; group++) {
 		struct groupDescriptorFields fields = groupDescriptors[group];
@@ -244,9 +255,6 @@ void readFreeBitmapEntry(int fd) {
 		unsigned long inodeStartOffset = 1 + group * inodesPerGroup;
 		unsigned long inodeByteStartOffset = inodeBitmapBlock * blockSize;
 
-		listOfAllocatedInodes = malloc(allocatedInodeCount * sizeof(unsigned long));
-		allocatedInodeCount = 0;
-
 		for (int i = 0; i < inodesPerGroup; i++) {
 			unsigned char buffer;
 			pread(fd, &buffer, 1, inodeByteStartOffset + i / 8);
@@ -268,7 +276,130 @@ void readFreeBitmapEntry(int fd) {
 //Reads in inodes, populates pointers to denote found indoes with certain properties, 
 //and creates the csv
 void readInodes(int fd) {
-	
+	FILE* writeFileStream = fopen("inode.csv", "w+");
+
+	listOfDirectoryInodes = malloc(allocatedInodeCount * sizeof(unsigned long));
+	directoryInodeCount = 0;
+
+	if (listOfDirectoryInodes == 0) {
+		fprintf(stderr, "Memory allocation error at 281\n");
+	}
+
+	listOfIndirectInodes = malloc(allocatedInodeCount * sizeof(unsigned long));
+	indirectInodeCount = 0;
+
+	if (listOfIndirectInodes == 0) {
+		fprintf(stderr, "Memory allocation error at 282\n");
+	}
+
+	//From the list of populated inodes created in readFreeBitmapEntry, iterate through
+	//populated list. 
+
+	for (int i = 0; i < allocatedInodeCount; i++) {
+		unsigned long currentInodeNumber = listOfAllocatedInodes[i];
+		//Locate the inode from the inode number
+		unsigned long blockGroup = (currentInodeNumber - 1) / inodesPerGroup;
+		unsigned long localInodeIndex = (currentInodeNumber - 1) % inodesPerGroup;
+
+		unsigned long inodeByteOffset = 
+			getIntFromBuffer(groupDescriptors[blockGroup].inodeTableBlock, 4)
+				* blockSize //The byte offset of the inode table for this particular inode
+							//(created by block number of that table * bytes per block)
+			+ localInodeIndex * bytesPerInode; //The number of bytes into the table this
+											   //inode resides
+
+		//Write inode number to inode.csv
+		fprintf(writeFileStream, "%lu,", currentInodeNumber);
+
+		//Get the file type of the inode. We only care about regular files 'f', 
+		//directories 'd', and symbolic links 's'. Everything else is marked with '?'.
+		unsigned char buffer[64];
+		preadLittleEndian(fd, buffer, 2, inodeByteOffset + 0); //Offset for mode info
+		unsigned int modeInfo = getIntFromBuffer(buffer, 2);
+		if ((modeInfo & 0xA000) == 0xA000) //Symbolic link 
+			fprintf(writeFileStream, "s,");
+		else if ((modeInfo & 0x8000) == 0x8000) //Regular file
+			fprintf(writeFileStream, "f,");
+		else if ((modeInfo & 0x4000) == 0x4000) { 
+			//Directory. Also needs to add this into directory 
+			//structure
+			fprintf(writeFileStream, "d,");
+			listOfDirectoryInodes[directoryInodeCount] = currentInodeNumber;
+			directoryInodeCount++;
+		}
+		else fprintf(writeFileStream, "?,");
+
+		//Print the full mode info
+		fprintf(writeFileStream, "%o,", modeInfo);
+
+		//Print owner info
+		preadLittleEndian(fd, buffer, 2, inodeByteOffset + 2); //Offset for UID
+		fprintf(writeFileStream, "%d,", getIntFromBuffer(buffer, 2));
+
+		//Print group id
+		preadLittleEndian(fd, buffer, 2, inodeByteOffset + 24); //Offset for GID
+		fprintf(writeFileStream, "%d,", getIntFromBuffer(buffer, 2));
+
+		//Print link count
+		preadLittleEndian(fd, buffer, 2, inodeByteOffset + 26); //Offset for link count
+		fprintf(writeFileStream, "%d,", getIntFromBuffer(buffer, 2));
+
+		//Creation time (hexedecimal)
+		preadLittleEndian(fd, buffer, 4, inodeByteOffset + 12); //Offset for creation time
+		fprintf(writeFileStream, "%x,", getIntFromBuffer(buffer, 4)); //Written in hex
+
+		//Modification time (hexedecimal)
+		preadLittleEndian(fd, buffer, 4, inodeByteOffset + 16); //Offset for Modification time
+		fprintf(writeFileStream, "%x,", getIntFromBuffer(buffer, 4)); //Written in hex
+
+		//Access time (hexedecimal)
+		preadLittleEndian(fd, buffer, 4, inodeByteOffset + 8); //Offset for Access time
+		fprintf(writeFileStream, "%x,", getIntFromBuffer(buffer, 4)); //Written in hex
+
+		//File size
+		preadLittleEndian(fd, buffer, 4, inodeByteOffset + 4); //Offset for lower 32 bytes
+		unsigned int lower32 = getIntFromBuffer(buffer, 4);
+		unsigned int upper32 = 0;
+		if (modeInfo & 0x8000) { //Regular file, might have higher 32
+			preadLittleEndian(fd, buffer, 4, inodeByteOffset + 108); 
+				//Offset for upper 32 bytes
+			upper32 = getIntFromBuffer(buffer, 4);
+		}
+		if (upper32 == 0) {
+			fprintf(writeFileStream, "%u,", lower32);
+		}
+		else {
+			unsigned long long total = ((unsigned long long) upper32 << 32) 
+				+ (unsigned long long) lower32;
+			fprintf(writeFileStream, "%llu,", total);
+		}
+
+		//File system block count
+		preadLittleEndian(fd, buffer, 4, inodeByteOffset + 28);
+		unsigned int smallBlockChunks = getIntFromBuffer(buffer, 4);
+		//Number of file system blocks is dependent on the block size
+		unsigned int blockChunk = 
+			(smallBlockChunks * 512 + blockSize - 1) / (blockSize); //Block size rounded up
+		fprintf(writeFileStream, "%u", blockChunk); //Note no comma here due to how
+													//we do block pointer separation
+
+		//Block pointers
+		unsigned int blockPointerArrayOffset = 40;
+		for (int i = 0; i < 15; i++) {
+			//Read the ith pointer. Each pointer is 4 bytes wide. 
+			preadLittleEndian(fd, buffer, 4, 
+				inodeByteOffset + blockPointerArrayOffset + i * 4);
+			//First add a comma, then write the pointer
+			int pointerValue = getIntFromBuffer(buffer, 4);
+			fprintf(writeFileStream, ",%x", pointerValue);
+			if (pointerValue != 0 && i >= 12) { //Pointer 12 on points to indirect pointers.
+				listOfIndirectInodes[indirectInodeCount] = currentInodeNumber;
+				indirectInodeCount++;
+			}
+		}
+		fprintf(writeFileStream, "\n");
+		fflush(writeFileStream);
+	}
 }
 
 int main (int argc, const char* argv[]) {
@@ -293,4 +424,5 @@ int main (int argc, const char* argv[]) {
 	readSuperBlock(diskImageFD);
 	readGroupDescriptor(diskImageFD);
 	readFreeBitmapEntry(diskImageFD);
+	readInodes(diskImageFD);
 }
