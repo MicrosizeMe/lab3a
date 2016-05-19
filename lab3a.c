@@ -385,6 +385,7 @@ void readInodes(int fd) {
 
 		//Block pointers
 		unsigned int blockPointerArrayOffset = 40;
+		int added = 0;
 		for (int i = 0; i < 15; i++) {
 			//Read the ith pointer. Each pointer is 4 bytes wide. 
 			preadLittleEndian(fd, buffer, 4, 
@@ -392,9 +393,11 @@ void readInodes(int fd) {
 			//First add a comma, then write the pointer
 			int pointerValue = getIntFromBuffer(buffer, 4);
 			fprintf(writeFileStream, ",%x", pointerValue);
-			if (pointerValue != 0 && i >= 12) { //Pointer 12 on points to indirect pointers.
+			if (pointerValue != 0 && i >= 12 && !added) { 
+				//Pointer 12 on points to indirect pointers and we haven't already added it
 				listOfIndirectInodes[indirectInodeCount] = currentInodeNumber;
 				indirectInodeCount++;
+				added = 1;
 			}
 		}
 		fprintf(writeFileStream, "\n");
